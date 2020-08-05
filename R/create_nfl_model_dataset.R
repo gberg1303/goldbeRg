@@ -1,4 +1,8 @@
+#' Create the Dataset
 #' @import dplyr
+#' @param keep_latest_performance: This will determine whether the dataset that is outputted will be the team's latest performance or the full model dataset
+#' @return Model Dataset
+#' @export
 create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
 
 
@@ -223,6 +227,13 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     Model_Dataset_Append %>%
       dplyr::mutate(game_completed = 0))
 
+  ### Add Game Location
+  # Scrape game Location
+  game_location <- nflfastR::fast_scraper_schedules(min(Model_Dataset$season):max(Model_Dataset$season)) %>%
+    dplyr::select(game_id, location)
+  # Merge Game Location
+  Model_Dataset <- Model_Dataset %>%
+    dplyr::left_join(game_location, by = "game_id")
 
   ifelse(keep_latest_performance == TRUE, return(latest_team_performance), return(Model_Dataset))
 

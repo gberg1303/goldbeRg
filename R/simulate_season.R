@@ -1,3 +1,9 @@
+#'Simulation Seasons
+#'  @param year: The season you wish to simulate
+#' @param simulations: how many times do you wish to simulate the season?
+#' @param seed: seed for the model. pick a random number.
+#' @return dataset of results for season simulations
+#' @export
 simulate_season <- function(year, seed = 123, simulations = 1000){
 
   ### Generate Season Predictions, Get Latest Data, Load Model
@@ -234,7 +240,10 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
   return(probabilties)
 }
 
-
+#' Create a table for simulated Seasons
+#' @param season_simulation_data: the output of the season simulation function
+#' @return makes the table pretty!
+#' @export
 simulated_season_table <- function(season_simulation_data){
 
   ### Make Reactable Table

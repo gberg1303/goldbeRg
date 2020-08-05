@@ -1,4 +1,10 @@
+#' Create the Model
 #' @import dplyr
+#' @param year: the year in which the model will test, meaning the model will be based on data prior to that season.
+#' @param dataset: this should be set to the dataset that is outputted by the create model function.
+#' @param seed: seed for the model. pick a random number.
+#' @return trained glm model
+#' @export
 create_nfl_model <- function(year, dataset, seed = 123){
 
   ### Create Model
@@ -6,7 +12,8 @@ create_nfl_model <- function(year, dataset, seed = 123){
   set.seed(seed)
   Goldberg_Model <- caret::train(win ~
                             point_differential + adjusted_off_epa + adjusted_def_epa +
-                            opp_point_differential + opp_adjusted_off_epa + opp_adjusted_def_epa,
+                            opp_point_differential + opp_adjusted_off_epa + opp_adjusted_def_epa +
+                              location,
                           data = dataset %>% mutate(win = as.factor(win)) %>% filter(season < year),
                           method = 'glm',
                           family = "binomial",
@@ -16,7 +23,12 @@ create_nfl_model <- function(year, dataset, seed = 123){
 
 }
 
-
+#' Predict the NFL
+#' @import dplyr
+#' @param years: the years for which you want to get predictions from nfl games
+#' @param seed: seed for the model. pick a random number.
+#' @return datatable with predictions for games
+#' @export
 generate_nfl_predictions <- function(years, seed = 123){
 
   ### Grab Model Dataset
