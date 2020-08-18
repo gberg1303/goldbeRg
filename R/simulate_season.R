@@ -2,9 +2,10 @@
 #'  @param year: The season you wish to simulate
 #' @param simulations: how many times do you wish to simulate the season?
 #' @param seed: seed for the model. pick a random number.
+#' @param preseason: this will simulate the season from scratch based on latest performance data that account for offseason regression to the mean.
 #' @return dataset of results for season simulations
 #' @export
-simulate_season <- function(year, seed = 123, simulations = 1000){
+simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TRUE){
 
   ### Generate Season Predictions, Get Latest Data, Load Model
   latest_performance_data <- create_nfl_modeldataset(keep_latest_performance = TRUE)
@@ -44,13 +45,16 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
         division_winner = ifelse(division_rank == 1, 1, 0)) %>%
       dplyr::group_by(conference, division_winner) %>%
       dplyr::mutate(
-        rest_conference_rank = rank(-wins, ties.method = "random")) %>%
+        conference_rank = rank(-wins, ties.method = "random"),
+        ) %>%
       dplyr::ungroup() %>%
       dplyr::mutate(
-        wild_card = ifelse(division_winner == 0 & rest_conference_rank == 1 |division_winner == 0 & rest_conference_rank == 2, 1, 0),
-        playoff = ifelse(division_winner == 1 | wild_card == 1, 1, 0)
+        conference_rank = ifelse(division_winner == 0, conference_rank + 4, conference_rank),
+        first_seed = ifelse(conference_rank == 1, 1, 0),
+        wild_card = ifelse(conference_rank > 1 & conference_rank <= 7, 1, 0),
+        playoff = ifelse(first_seed == 1 | wild_card == 1, 1, 0)
         ) %>%
-      dplyr::select(-rest_conference_rank, -division_rank) %>%
+      dplyr::select(-conference_rank, -division_rank) %>%
 
        # Add Sim Number for Mapping
       dplyr::mutate(sim_no = simulations)
@@ -58,16 +62,17 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
     ### Wild Card Round
     # Seed Teams
     wild_card_seeds <- team_wins %>%
-      dplyr::filter(playoff == 1) %>%
+      dplyr::filter(wild_card == 1) %>%
       dplyr::group_by(conference, division_winner) %>%
       dplyr::mutate(seed = rank(-wins, ties.method = "random")) %>%
       dplyr::ungroup() %>%
-      dplyr::mutate(seed = ifelse(division_winner == 0 & seed == 1, 5, seed),
-                    seed = ifelse(division_winner == 0 & seed == 2, 6, seed))
+      dplyr::mutate(seed = ifelse(division_winner == 0 & seed == 1, 4, seed),
+                    seed = ifelse(division_winner == 0 & seed == 2, 5, seed),
+                    seed = ifelse(division_winner == 0 & seed == 3, 6, seed))
 
     # Create Matchups
-    wild_card_matchups <- dplyr::tibble(home_team_seed = c(3, 4),
-                                    away_team_seed = c(6, 5)) %>%
+    wild_card_matchups <- dplyr::tibble(home_team_seed = c(1, 2, 3),
+                                    away_team_seed = c(6, 5, 4)) %>%
       dplyr::left_join(wild_card_seeds %>% dplyr::select(team, seed, conference), by = c("home_team_seed" = "seed")) %>%
       dplyr::left_join(wild_card_seeds %>% dplyr::select(team, seed, conference), by = c("away_team_seed" = "seed")) %>%
       dplyr::rename(home_team = team.x,
@@ -83,7 +88,8 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
                          dplyr::rename(
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
-                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team"))
+                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
+      dplyr::mutate(location = "Home")
     # Make Prediction Probability and Simulate
     wild_card_outcomes <- wild_card_matchups %>%
       dplyr::mutate(model_home_wp = caret::predict.train(newdata = wild_card_matchups, object = model, type = "prob")[,2]) %>%
@@ -99,19 +105,30 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
       dplyr::select(team, seed, conference) %>%
       dplyr::group_by(conference) %>%
       dplyr::mutate(seed = rank(seed)) %>%
-      dplyr::mutate(seed = ifelse(seed == 1, 3, 4)) %>%
+      dplyr::mutate(seed = seed + 1) %>%
       dplyr::ungroup()
 
     # Create Divisional Matchup
-    divisional_matchup <- wild_card_seeds %>%
-      dplyr::select(team, conference, seed) %>%
-      dplyr::filter(seed == 1 | seed == 2) %>%
-      dplyr::mutate(away_team_seed = ifelse(seed == 1, 4, 3)) %>%
-      dplyr::left_join(wild_card_winners, by = c("away_team_seed" = "seed", "conference")) %>%
+    divisional_matchup <- dplyr::tibble(home_team_seed = c(1, 2),
+                                        away_team_seed = c(3, 4)) %>%
+      dplyr::left_join(team_wins %>%
+                         dplyr::filter(first_seed == 1) %>%
+                         dplyr::mutate(seed = 1) %>%
+                         dplyr::select(team, conference, seed) %>%
+                         dplyr::bind_rows(
+                           wild_card_winners %>%
+                             dplyr::filter(seed <= 3) %>%
+                             dplyr::select(team, conference, seed)
+                    ),
+                by = c("home_team_seed" = "seed")) %>%
+      dplyr::left_join(
+        wild_card_winners %>%
+          dplyr::filter(seed >= 3) %>%
+          dplyr::select(team, conference, seed),
+        by = c("away_team_seed" = "seed", "conference")) %>%
       dplyr::rename(
         home_team = team.x,
-        away_team = team.y,
-        home_team_seed = seed
+        away_team = team.y
       ) %>%
     # Add Performance Data
       dplyr::left_join(latest_performance_data, by = c("home_team" = "team")) %>%
@@ -119,12 +136,13 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
                          dplyr::rename(
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
-                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team"))
+                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
+      dplyr::mutate(location = "Home")
 
     # Predict and Simulate Divisional Round
     divisional_outcomes <- divisional_matchup %>%
-      dplyr::mutate(model_home_wp = caret::predict.train(newdata = wild_card_matchups, object = model, type = "prob")[,2]) %>%
-      dplyr::mutate(outcome = stats::rbinom(n = nrow(wild_card_outcomes), size = 1, prob=model_home_wp))
+      dplyr::mutate(model_home_wp = caret::predict.train(newdata = ., object = model, type = "prob")[,2]) %>%
+      dplyr::mutate(outcome = stats::rbinom(n = nrow(.), size = 1, prob=model_home_wp))
 
     ### Conference Championship
     # Grab winners and reseed
@@ -155,7 +173,8 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
                          dplyr::rename(
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
-                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team"))
+                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
+      dplyr::mutate(location = "Home")
 
     # Predict and Simulate Divisional Round
     conference_outcome <- conference_matchup %>%
@@ -193,7 +212,8 @@ simulate_season <- function(year, seed = 123, simulations = 1000){
                          dplyr::rename(
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
-                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team"))
+                           opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
+      dplyr::mutate(location = "Neutral")
 
     # Predict and Simulate Divisional Round
     super_outcome <- super_matchup %>%

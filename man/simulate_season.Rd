@@ -5,12 +5,14 @@
 \title{Simulation Seasons
  @param year: The season you wish to simulate}
 \usage{
-simulate_season(year, seed = 123, simulations = 1000)
+simulate_season(year, seed = 123, simulations = 1000, preseason = TRUE)
 }
 \arguments{
 \item{simulations:}{how many times do you wish to simulate the season?}
 
 \item{seed:}{seed for the model. pick a random number.}
+
+\item{preseason:}{this will simulate the season from scratch based on latest performance data that account for offseason regression to the mean.}
 }
 \value{
 dataset of results for season simulations
