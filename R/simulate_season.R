@@ -12,6 +12,13 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
   model <- create_nfl_model(year = year, dataset = create_nfl_modeldataset(keep_latest_performance = FALSE), seed = seed)
   season_prediction <- generate_nfl_predictions(years = year)
 
+  # For Active Season Predictions, ensure that completed games already count.
+  if(preseason == FALSE){
+  season_prediction <- season_prediction %>%
+    dplyr::mutate(model_home_wp = ifelse(game_completed == 1, win, model_home_wp))
+  }
+
+  ### Run the Simulations
   simulation_outcomes <- purrr::map_df(1:simulations, function(simulations){
 
     ### Get Playoff Outcomes

@@ -35,19 +35,57 @@ generate_nfl_predictions <- function(years, seed = 123){
   message(paste("Getting Dataset"))
   dataset <- create_nfl_modeldataset()
 
-
+  ### Create Predictions
   message(paste("Mapping Years"))
   results <- purrr::map_df(years, function(years){
-  ### Create Model
-  model <- create_nfl_model(year = years, dataset = dataset, seed = seed)
 
-  ### Generate Predictions
-  predictions <- dataset %>%
-    dplyr::filter(season == years) %>%
-    dplyr::mutate(model_home_wp = caret::predict.train(newdata = dataset %>% dplyr::mutate(win = as.factor(win)) %>% dplyr::filter(season == years), object = model, type = "prob")[,2]) %>%
-    dplyr::select(game_id, home_team, away_team, model_home_wp)
+    # Create Model
+    model <- create_nfl_model(year = years, dataset = dataset, seed = seed)
 
-  return(predictions)
+    # Generate Predictions
+    predictions <- dataset %>%
+      dplyr::filter(season == years) %>%
+      dplyr::mutate(model_home_wp = caret::predict.train(newdata = dataset %>% dplyr::mutate(win = as.factor(win)) %>% dplyr::filter(season == years), object = model, type = "prob")[,2]) %>%
+      dplyr::select(game_id, game_completed, win, home_team, away_team, model_home_wp)
+
+    return(predictions)
+  })
+  return(results)
+
+}
+
+
+#' Help Simulate the NFL
+#' @import dplyr
+#' @param years: the years for which you want to get predictions from nfl games
+#' @param seed: seed for the model. pick a random number.
+#' @return datatable with predictions for games. A team's epa is randomly generated from a normal distribution of their last ten games.
+generate_simulation_predictions <- function(years, seed = 123){
+
+  ### Grab Model Dataset
+  message(paste("Getting Dataset"))
+  dataset <- create_nfl_modeldataset()
+
+  ### Create Predictions
+  message(paste("Mapping Years"))
+  results <- purrr::map_df(years, function(years){
+
+    # Create Model
+    model <- create_nfl_model(year = years, dataset = dataset, seed = seed)
+
+    # Generate Predictions
+    predictions <- dataset %>%
+      dplyr::filter(season == years) %>%
+      # Generate new statistics from normal distribution of their last ten games
+      dplyr::mutate(
+        point_differential = rnorm(1, mean = point_differential, sd = point_differential_sd),
+        adjusted_off_epa = rnorm(1, mean = adjusted_off_epa, sd = adjusted_off_epa_sd),
+        adjusted_def_epa = rnorm(1, mean = adjusted_def_epa, sd = adjusted_def_epa_sd)) %>%
+      # Model predicts
+      dplyr::mutate(model_home_wp = caret::predict.train(newdata = dataset %>% dplyr::mutate(win = as.factor(win)) %>% dplyr::filter(season == years), object = model, type = "prob")[,2]) %>%
+      dplyr::select(game_id, game_completed, win, home_team, away_team, model_home_wp)
+
+    return(predictions)
   })
   return(results)
 

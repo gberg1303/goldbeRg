@@ -80,11 +80,13 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
       off_epa = pracma::movavg(off_epa, n = 10, type = "s"),
       off_epa = dplyr::lag(off_epa),
       adjusted_off_epa = dplyr::lag(pracma::movavg(adjusted_off_epa, n = 10, type = "s")),
-      adjusted_def_epa = dplyr::lag(pracma::movavg(adjusted_def_epa, n = 10, type = "s"))
+      adjusted_def_epa = dplyr::lag(pracma::movavg(adjusted_def_epa, n = 10, type = "s")),
+      adjusted_off_epa_sd = dplyr::lag(roll::roll_sd(adjusted_off_epa, width = 10)),
+      adjusted_def_epa_sd = dplyr::lag(roll::roll_sd(adjusted_def_epa, width = 10)),
     ) %>%
     dplyr::ungroup() %>%
     dplyr::select(-home_team, -away_team) %>%
-    dplyr::select(game_id, posteam, season, week, off_epa, def_epa, adjusted_off_epa, adjusted_def_epa)
+    dplyr::select(game_id, posteam, season, week, off_epa, def_epa, adjusted_off_epa, adjusted_def_epa, adjusted_off_epa_sd, adjusted_def_epa_sd)
 
   ### Get Schedule and Game Outcomes
   message(paste("Creating Schedule and Game Outcomes"))
@@ -139,7 +141,8 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     dplyr::group_by(team) %>%
     dplyr::arrange(season, week) %>%
     dplyr::mutate(
-      point_differential = dplyr::lag(pracma::movavg(point_differential, n = 10, type = "s"))
+      point_differential = dplyr::lag(pracma::movavg(point_differential, n = 10, type = "s")),
+      point_differential_sd = dplyr::lag(roll::roll_sd(point_differential, width = 10))
     ) %>%
     dplyr::ungroup()
 
@@ -148,9 +151,10 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
   Model_Dataset <- NFL_Outcomes_Weekly %>%
     # Add Opponent Box Score Statistics
     merge(y = NFL_Outcomes_Weekly %>%
-            dplyr::select(game_id, team, point_differential) %>%
+            dplyr::select(game_id, team, point_differential, point_differential_sd) %>%
             dplyr::rename(
-              opp_point_differential = point_differential
+              opp_point_differential = point_differential,
+              opp_point_differential_sd = point_differential_sd
             ),
           by.x = c("opponent", "game_id"),
           by.y = c("team", "game_id")) %>%
@@ -161,7 +165,9 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                   opp_off_epa = off_epa,
                   opp_def_epa = def_epa,
                   opp_adjusted_off_epa = adjusted_off_epa,
-                  opp_adjusted_def_epa = adjusted_def_epa),
+                  opp_adjusted_def_epa = adjusted_def_epa,
+                  opp_adjusted_off_epa_sd = adjusted_off_epa_sd,
+                  opp_adjusted_def_epa_sd = adjusted_def_epa_sd),
               by = c("game_id", "season", "week", "away_team" = "posteam")) %>%
     dplyr::filter(home_team == team) %>%
     # Add Home Margin and Playoff Indication
@@ -182,9 +188,10 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
   latest_team_performance <- NFL_Outcomes_Weekly %>%
     # Add Opponent Box Score Statistics
     merge(y = NFL_Outcomes_Weekly %>%
-            dplyr::select(game_id, team, point_differential) %>%
+            dplyr::select(game_id, team, point_differential, point_differential_sd) %>%
             dplyr::rename(
-              opp_point_differential = point_differential
+              opp_point_differential = point_differential,
+              opp_point_differential_sd = point_differential_sd
             ),
           by.x = c("opponent", "game_id"),
           by.y = c("team", "game_id")) %>%
@@ -195,7 +202,9 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                          opp_off_epa = off_epa,
                          opp_def_epa = def_epa,
                          opp_adjusted_off_epa = adjusted_off_epa,
-                         opp_adjusted_def_epa = adjusted_def_epa),
+                         opp_adjusted_def_epa = adjusted_def_epa,
+                         opp_adjusted_off_epa_sd = adjusted_off_epa_sd,
+                         opp_adjusted_def_epa_sd = adjusted_def_epa_sd),
                      by = c("game_id", "season", "week", "away_team" = "posteam")) %>%
     arrange(season, week) %>%
     dplyr::mutate(numeric_id = row_number()) %>%
@@ -209,16 +218,20 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     dplyr::group_by(team) %>%
     dplyr::filter(numeric_id == max(numeric_id)) %>%
     dplyr::select(-opponent, -team, -winner, -loser) %>%
-    dplyr::select(team, point_differential, adjusted_off_epa, adjusted_def_epa)
+    dplyr::select(team, point_differential, adjusted_off_epa, adjusted_def_epa, point_differential_sd, adjusted_off_epa_sd, adjusted_def_epa_sd)
   # Merge the player statistics over
   Model_Dataset_Append <- games %>%
     dplyr::filter(game_id %in% Model_Dataset$game_id == FALSE) %>%
-    dplyr::left_join(latest_team_performance, by = c("home_team" = "team")) %>%
+    dplyr::left_join(latest_team_performance,
+                     by = c("home_team" = "team")) %>%
     dplyr::left_join(latest_team_performance %>%
                        dplyr::rename(
                          opp_point_differential = point_differential,
+                         opp_point_differential_sd = point_differential_sd,
                          opp_adjusted_off_epa = adjusted_off_epa,
-                         opp_adjusted_def_epa = adjusted_def_epa
+                         opp_adjusted_def_epa = adjusted_def_epa,
+                         opp_adjusted_off_epa_sd = adjusted_off_epa_sd,
+                         opp_adjusted_def_epa_sd = adjusted_def_epa_sd
                        ), by = c("away_team" = "team"))
   # Append Newest Season
   Model_Dataset <- dplyr::bind_rows(
