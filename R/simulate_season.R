@@ -8,6 +8,7 @@
 simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TRUE){
 
   ### Do Multiprocess
+  message("Loading Multiprocess")
   future::plan(future::multiprocess)
 
   ### Generate Season Predictions, Get Latest Data, Load Model
