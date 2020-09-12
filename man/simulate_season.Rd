@@ -2,12 +2,13 @@
 % Please edit documentation in R/simulate_season.R
 \name{simulate_season}
 \alias{simulate_season}
-\title{Simulation Seasons
- @param year: The season you wish to simulate}
+\title{Simulation Seasons}
 \usage{
 simulate_season(year, seed = 123, simulations = 1000, preseason = TRUE)
 }
 \arguments{
+\item{year:}{The season you wish to simulate}
+
 \item{simulations:}{how many times do you wish to simulate the season?}
 
 \item{seed:}{seed for the model. pick a random number.}
@@ -19,5 +20,4 @@ dataset of results for season simulations
 }
 \description{
 Simulation Seasons
- @param year: The season you wish to simulate
 }

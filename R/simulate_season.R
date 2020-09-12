@@ -1,11 +1,14 @@
 #'Simulation Seasons
-#'  @param year: The season you wish to simulate
+#'@param year: The season you wish to simulate
 #' @param simulations: how many times do you wish to simulate the season?
 #' @param seed: seed for the model. pick a random number.
 #' @param preseason: this will simulate the season from scratch based on latest performance data that account for offseason regression to the mean.
 #' @return dataset of results for season simulations
 #' @export
 simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TRUE){
+
+  ### Do Multiprocess
+  future::plan(future::multiprocess)
 
   ### Generate Season Predictions, Get Latest Data, Load Model
   latest_performance_data <- create_nfl_modeldataset(keep_latest_performance = TRUE)
@@ -19,7 +22,7 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
   }
 
   ### Run the Simulations
-  simulation_outcomes <- purrr::map_df(1:simulations, function(simulations){
+  simulation_outcomes <- furrr::future_map_dfr(1:simulations, function(simulations){
 
     ### Get Playoff Outcomes
     outcomes <- season_prediction %>%
