@@ -183,7 +183,9 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
 
   ### Append Newest Season
   # Get Games
-  games <- nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(game_id, season, week, home_team, away_team)
+  games <- tryCatch(nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(game_id, season, week, home_team, away_team), error = function(x){
+    nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)) %>% dplyr::select(game_id, season, week, home_team, away_team)
+  })
   # Get latest performance
   latest_team_performance <- NFL_Outcomes_Weekly %>%
     # Add Opponent Box Score Statistics
