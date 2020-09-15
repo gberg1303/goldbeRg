@@ -198,16 +198,7 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
           by.x = c("opponent", "game_id"),
           by.y = c("team", "game_id")) %>%
     # Add EPA Statistics
-    dplyr::left_join(epa_data, by = c("game_id", "season", "week",  "home_team" = "posteam")) %>%
-    dplyr::left_join(epa_data %>%
-                       dplyr::rename(
-                         opp_off_epa = off_epa,
-                         opp_def_epa = def_epa,
-                         opp_adjusted_off_epa = adjusted_off_epa,
-                         opp_adjusted_def_epa = adjusted_def_epa,
-                         opp_adjusted_off_epa_sd = adjusted_off_epa_sd,
-                         opp_adjusted_def_epa_sd = adjusted_def_epa_sd),
-                     by = c("game_id", "season", "week", "away_team" = "posteam")) %>%
+    dplyr::left_join(epa_data, by = c("game_id", "season", "week",  "team" = "posteam")) %>%
     arrange(season, week) %>%
     dplyr::mutate(numeric_id = row_number()) %>%
     # Add Home Margin and Playoff Indication
