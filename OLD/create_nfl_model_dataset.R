@@ -181,27 +181,10 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     # Add Numeric ID
     dplyr::mutate(numeric_id = row_number())
 
-  ### Add QB Data
-  message(paste("Adding QB Data"))
-  # Load Data
-  qbs <- add_qb_rating()
-  # Merge Over
-  Model_Dataset <- Model_Dataset %>%
-    # Add Home QB
-    dplyr::left_join(
-      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, Composite) %>% dplyr::rename(home_qb = Composite),
-      by = c("home_team" = "posteam", "game_id")
-    ) %>%
-    # Add Away QB
-    dplyr::left_join(
-      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, Composite) %>% dplyr::rename(away_qb = Composite),
-      by = c("away_team" = "posteam", "game_id")
-    )
-
   ### Append Newest Season
   # Get Games
-  games <- tryCatch(nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team), error = function(x){
-    nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team)
+  games <- tryCatch(nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(game_id, season, week, home_team, away_team), error = function(x){
+    nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)) %>% dplyr::select(game_id, season, week, home_team, away_team)
   })
   # Get latest performance
   latest_team_performance <- NFL_Outcomes_Weekly %>%
@@ -229,38 +212,6 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     dplyr::filter(numeric_id == max(numeric_id)) %>%
     dplyr::select(-opponent, -team, -winner, -loser) %>%
     dplyr::select(team, point_differential, adjusted_off_epa, adjusted_def_epa, point_differential_sd, adjusted_off_epa_sd, adjusted_def_epa_sd)
-  # Add Latest QB Data
-  message(paste("Adding QB Starters for Rest of Season"))
-  # Get latest performance and future starters
-  qb_latest <- add_qb_rating(keep_latest_performance = TRUE)
-  qb_starters <- readr::read_csv("https://projects.fivethirtyeight.com/nfl-api/nfl_elo_latest.csv") %>%
-    dplyr::mutate(
-      team1 = gsub("WSH", "WAS", team1),
-      team2 = gsub("WSH", "WAS", team2),
-      team1 = gsub("LAR", "LA", team1),
-      team2 = gsub("LAR", "LA", team2),
-      team1 = gsub("OAK", "LV", team1),
-      team2 = gsub("OAK", "LV", team2)
-    ) %>%
-    dplyr::select(date, season, team1, team2, qb1, qb2) %>%
-    dplyr::mutate(qb1 = paste0(substr(qb1, 1, 1), ".", sub("^\\S+\\s+", '', qb1)),
-                  qb2 = paste0(substr(qb2, 1, 1), ".", sub("^\\S+\\s+", '', qb2)),
-    ) %>%
-    dplyr::left_join(
-      qb_latest %>% dplyr::ungroup() %>% dplyr::select(passer_player_name, Composite) %>% dplyr::rename(home_qb = Composite),
-      by = c("qb1" = "passer_player_name")
-    ) %>%
-    dplyr::left_join(
-      qb_latest %>% dplyr::ungroup() %>% dplyr::select(passer_player_name, Composite) %>% dplyr::rename(away_qb = Composite),
-      by = c("qb2" = "passer_player_name")
-    ) %>%
-    dplyr::mutate(home_qb = ifelse(is.na(home_qb) == TRUE, .01, home_qb),
-                  away_qb = ifelse(is.na(away_qb) == TRUE, .01, away_qb))
-  # Merge into Schedule
-  games <- games %>%
-    dplyr::mutate(gameday = as.Date(gameday)) %>%
-    dplyr::left_join(qb_starters,
-              by = c("gameday" = "date", "season", "home_team" = "team1", "away_team" = "team2"))
   # Merge the player statistics over
   Model_Dataset_Append <- games %>%
     dplyr::filter(game_id %in% Model_Dataset$game_id == FALSE) %>%
