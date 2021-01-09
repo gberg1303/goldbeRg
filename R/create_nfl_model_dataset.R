@@ -25,8 +25,7 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                 filter(!is.na(epa), !is.na(ep), !is.na(posteam), play_type=="pass" | play_type=="run", season >= 2007) %>%
                 dplyr::group_by(game_id, season, week, defteam, away_team) %>%
                   dplyr::summarise(def_epa=mean(epa)),
-              by = c("game_id", "posteam" = "defteam", "season", "week"),
-              all.x = TRUE) %>%
+              by = c("game_id", "posteam" = "defteam", "season", "week")) %>%
     dplyr::mutate(opponent = ifelse(posteam == home_team, away_team, home_team)) %>%
     dplyr::select(game_id, season, week, home_team, away_team, posteam, opponent, off_epa, def_epa) %>%
     dplyr::collect()
@@ -46,7 +45,8 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                     opp_off_epa = pracma::movavg(opp_off_epa, n = 10, type = "s"),
                     opp_off_epa = dplyr::lag(opp_off_epa),
                 ), by = c("game_id", "season", "week", "home_team", "away_team", "opponent" = "posteam"),
-              all.x = TRUE)
+              #all.x = TRUE
+              )
   # Merge Back League Mean
   epa_data <- epa_data %>%
     dplyr::left_join(epa_data %>%
@@ -61,7 +61,8 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                          league_mean = lag(cummean(league_mean))
                 ),
               by = c("season", "week"),
-              all.x = TRUE)
+              #all.x = TRUE
+              )
   #Adjust EPA
   epa_data <- epa_data %>%
     dplyr::mutate(
@@ -134,7 +135,7 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
         ) %>%
         dplyr::select(-season, -week),
       by = c("game_id", "team" = "opponent", "opponent" = "team"),
-      all.x = TRUE
+     # all.x = TRUE
     )
   # Group and Create the Lagged Moving Average
   NFL_Outcomes_Weekly <- NFL_Outcomes_Weekly %>%
