@@ -71,6 +71,14 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
       adjusted_off_epa = off_epa + off_adjustment_factor,
       adjusted_def_epa = def_epa + def_adjustment_factor,
     )
+  # merge WP Success Rate
+  #wp_success <- add_wp_success_rate()
+  #epa_data <- epa_data %>%
+    # Home Team
+  #  dplyr::left_join(
+  #    wp_success,
+  #    by = c("game_id", "posteam" = "team")
+  #  )
   # Group and Get Moving Average
   epa_data <- epa_data %>%
     dplyr::group_by(posteam) %>%
@@ -84,10 +92,13 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
       adjusted_def_epa = dplyr::lag(pracma::movavg(adjusted_def_epa, n = 10, type = "s")),
       adjusted_off_epa_sd = dplyr::lag(roll::roll_sd(adjusted_off_epa, width = 10)),
       adjusted_def_epa_sd = dplyr::lag(roll::roll_sd(adjusted_def_epa, width = 10)),
+     # wp_success_rate = dplyr::lag(pracma::movavg(wp_success_rate, n = 3, type = "s"))
     ) %>%
     dplyr::ungroup() %>%
     dplyr::select(-home_team, -away_team) %>%
-    dplyr::select(game_id, posteam, season, week, off_epa, def_epa, adjusted_off_epa, adjusted_def_epa, adjusted_off_epa_sd, adjusted_def_epa_sd)
+    dplyr::select(game_id, posteam, season, week, off_epa, def_epa, adjusted_off_epa, adjusted_def_epa, adjusted_off_epa_sd, adjusted_def_epa_sd,
+                 # wp_success_rate
+                  )
 
   ### Get Schedule and Game Outcomes
   message(paste("Creating Schedule and Game Outcomes"))
@@ -168,7 +179,9 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
                   opp_adjusted_off_epa = adjusted_off_epa,
                   opp_adjusted_def_epa = adjusted_def_epa,
                   opp_adjusted_off_epa_sd = adjusted_off_epa_sd,
-                  opp_adjusted_def_epa_sd = adjusted_def_epa_sd),
+                  opp_adjusted_def_epa_sd = adjusted_def_epa_sd,
+                  #opp_wp_success_rate = wp_success_rate
+                  ),
               by = c("game_id", "season", "week", "away_team" = "posteam")) %>%
     dplyr::filter(home_team == team) %>%
     # Add Home Margin and Playoff Indication
@@ -190,14 +203,15 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
   Model_Dataset <- Model_Dataset %>%
     # Add Home QB
     dplyr::left_join(
-      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, Composite) %>% dplyr::rename(home_qb = Composite),
+      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, passer_player_name, Composite) %>% dplyr::rename(home_qb = Composite, qb1 = passer_player_name),
       by = c("home_team" = "posteam", "game_id")
     ) %>%
     # Add Away QB
     dplyr::left_join(
-      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, Composite) %>% dplyr::rename(away_qb = Composite),
+      qbs %>% dplyr::ungroup() %>% dplyr::select(game_id, posteam, passer_player_name, Composite) %>% dplyr::rename(away_qb = Composite, qb2 = passer_player_name),
       by = c("away_team" = "posteam", "game_id")
     )
+
 
   ### Append Newest Season
   # Get Games
@@ -286,7 +300,7 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
   ### Add Game Location
   # Scrape game Location
   game_location <- nflfastR::fast_scraper_schedules(min(Model_Dataset$season):max(Model_Dataset$season)) %>%
-    dplyr::select(game_id, location)
+    dplyr::select(game_id, location, stadium)
   # Merge Game Location
   Model_Dataset <- Model_Dataset %>%
     dplyr::left_join(game_location, by = "game_id")

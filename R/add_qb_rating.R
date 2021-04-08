@@ -27,7 +27,7 @@ add_qb_rating <- function(keep_latest_performance = FALSE){
     dplyr::group_by(passer_player_name, passer_player_id) %>%
     dplyr::mutate(
       games = n(),
-      dropbacks = sum(dropbacks)
+      dropbacks = cumsum(dropbacks)
     ) %>%
     dplyr::filter(games >= 6) %>%
     dplyr::mutate(
@@ -35,6 +35,7 @@ add_qb_rating <- function(keep_latest_performance = FALSE){
       epa = dplyr::lag(pracma::movavg(epa, n = 5, type = "s")),
     ) %>%
     dplyr::ungroup() %>%
+    dplyr::filter(dropbacks >= 100) %>%
     # Add Composite
     dplyr::mutate(Composite = cpoe*.009+epa*.21+.09) %>%
     # Select Data that Matters

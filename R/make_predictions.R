@@ -13,8 +13,12 @@ create_nfl_model <- function(year, dataset, seed = 123){
   Goldberg_Model <- caret::train(win ~
                             point_differential + adjusted_off_epa + adjusted_def_epa +
                             opp_point_differential + opp_adjusted_off_epa + opp_adjusted_def_epa +
-                              location,
-                          data = dataset %>% mutate(win = as.factor(win)) %>% filter(season < year),
+                           #location
+                              + stadium #+ location*stadium
+                             + home_qb + away_qb
+                               + home_qb*adjusted_off_epa + away_qb*opp_adjusted_off_epa
+                            ,
+                          data = dataset %>% mutate(win = as.factor(win), stadium = as.factor(stadium)) %>% filter(season < year),
                           method = 'glm',
                           family = "binomial",
                           preProc = c("scale"),
