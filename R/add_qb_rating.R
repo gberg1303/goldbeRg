@@ -64,7 +64,7 @@ add_qb_rating <- function(keep_latest_performance = FALSE){
       by = c("season", "week", "passer_player_name", "passer_player_id")
     ) %>%
     dplyr::filter(season > 2006) %>%
-    dplyr::mutate(Composite = ifelse(is.na(Composite) == TRUE, .01, Composite),
+    dplyr::mutate(Composite = ifelse(is.na(Composite) == TRUE, .1, Composite),
                   games = ifelse(is.na(games) == TRUE, 1, games)) %>%
     # remove more than one QB in a game
     dplyr::group_by(game_id, posteam, season, week) %>%

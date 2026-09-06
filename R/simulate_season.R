@@ -15,6 +15,7 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
   latest_performance_data <- create_nfl_modeldataset(keep_latest_performance = TRUE)
   model <- create_nfl_model(year = year, dataset = create_nfl_modeldataset(keep_latest_performance = FALSE), seed = seed)
   season_prediction <- generate_nfl_predictions(years = year)
+  stadiums <- nflseedR::load_sharpe_games() %>% dplyr::filter(season == 2020) %>% dplyr::group_by(home_team, stadium) %>% dplyr::summarise(n = n()) %>% dplyr::mutate(rank = rank(n, ties.method = "random")) %>% dplyr::filter(rank == max(rank)) %>% dplyr::ungroup() %>% dplyr::select(home_team, stadium) %>% dplyr::ungroup() %>% dplyr::select(home_team, stadium)
 
   # For Active Season Predictions, ensure that completed games already count.
   if(preseason == FALSE){
@@ -100,7 +101,12 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
                            opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
-      dplyr::mutate(location = "Home")
+      dplyr::rename(
+        home_qb = Composite.x,
+        away_qb = Composite.y
+      ) %>%
+      dplyr::mutate(location = "Home") %>%
+      dplyr::left_join(stadiums, by = "home_team")
     # Make Prediction Probability and Simulate
     wild_card_outcomes <- wild_card_matchups %>%
       dplyr::mutate(model_home_wp = caret::predict.train(newdata = wild_card_matchups, object = model, type = "prob")[,2]) %>%
@@ -148,7 +154,12 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
                            opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
-      dplyr::mutate(location = "Home")
+      dplyr::rename(
+        home_qb = Composite.x,
+        away_qb = Composite.y
+      ) %>%
+      dplyr::mutate(location = "Home") %>%
+      dplyr::left_join(stadiums, by = "home_team")
 
     # Predict and Simulate Divisional Round
     divisional_outcomes <- divisional_matchup %>%
@@ -185,15 +196,20 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
                            opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
-      dplyr::mutate(location = "Home")
+      dplyr::rename(
+        home_qb = Composite.x,
+        away_qb = Composite.y
+      ) %>%
+      dplyr::mutate(location = "Home") %>%
+      dplyr::left_join(stadiums, by = "home_team")
 
-    # Predict and Simulate Divisional Round
+    # Predict and Simulate Conference Round
     conference_outcome <- conference_matchup %>%
       dplyr::mutate(model_home_wp = caret::predict.train(newdata = conference_matchup, object = model, type = "prob")[,2]) %>%
       dplyr::mutate(outcome = stats::rbinom(n = nrow(conference_matchup), size = 1, prob=model_home_wp))
 
     ### Super Bowl Simulation
-    # Grab Wild Card Winners and reseed
+    # Grab Winners and reseed
     super_matchup <- conference_outcome %>%
       dplyr::mutate(
         team = ifelse(outcome == 1, home_team, away_team),
@@ -224,9 +240,14 @@ simulate_season <- function(year, seed = 123, simulations = 1000, preseason = TR
                            opp_point_differential = point_differential,
                            opp_adjusted_off_epa = adjusted_off_epa,
                            opp_adjusted_def_epa = adjusted_def_epa), by = c("away_team" = "team")) %>%
+      dplyr::rename(
+        home_qb = Composite.x,
+        away_qb = Composite.y
+      ) %>%
+      dplyr::left_join(stadiums, by = "home_team") %>%
       dplyr::mutate(location = "Neutral")
 
-    # Predict and Simulate Divisional Round
+    # Predict and Simulate Super Round
     super_outcome <- super_matchup %>%
       dplyr::mutate(model_home_wp = caret::predict.train(newdata = super_matchup, object = model, type = "prob")[,2],
                     alt_model_home_wp_1 = dplyr::lag(model_home_wp),

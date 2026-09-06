@@ -216,7 +216,9 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
   ### Append Newest Season
   # Get Games
   games <- tryCatch(nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team), error = function(x){
-    nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team)
+    tryCatch(nflseedR::load_sharpe_games() %>% dplyr::filter(season == max(NFL_Outcomes_Weekly$season)+1) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team), error = function(y){
+      nflfastR::fast_scraper_schedules(max(NFL_Outcomes_Weekly$season)) %>% dplyr::select(gameday, game_id, season, week, home_team, away_team)
+    })
   })
   # Get latest performance
   latest_team_performance <- NFL_Outcomes_Weekly %>%
@@ -276,6 +278,33 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
     dplyr::mutate(gameday = as.Date(gameday)) %>%
     dplyr::left_join(qb_starters,
               by = c("gameday" = "date", "season", "home_team" = "team1", "away_team" = "team2"))
+  # Make assumptions based on depth chart where QB is NA
+  assumed_starters <- nflfastR::fast_scraper_roster(2021) %>% dplyr::filter(position == "QB") %>% dplyr::mutate(short_name = paste0(substr(first_name, 1, 1), ".", last_name)) %>%
+    dplyr::left_join(qb_latest, by = c("short_name" = "passer_player_name")) %>%
+    dplyr::group_by(team) %>%
+    dplyr::mutate(
+      Composite = ifelse(is.na(Composite), .01, Composite),
+      rank = rank(Composite, ties.method = "random")
+    ) %>%
+    dplyr::filter(rank == max(rank), !is.na(team)) %>%
+    dplyr::select(team, short_name, passer_player_id, Composite)
+  # Merge into starters
+  games <- games %>%
+    dplyr::left_join(
+      assumed_starters,
+      by = c("home_team" = "team")
+    ) %>%
+    dplyr::left_join(
+      assumed_starters,
+      by = c("away_team" = "team")
+    ) %>%
+    dplyr::mutate(
+      qb1 = ifelse(is.na(qb1), short_name.x, qb1),
+      qb2 = ifelse(is.na(qb2), short_name.y, qb2),
+      home_qb = ifelse(is.na(home_qb), Composite.x, home_qb),
+      away_qb = ifelse(is.na(away_qb), Composite.y, away_qb)
+    ) %>%
+    dplyr::select(gameday, game_id, season, week, home_team, away_team, qb1, qb2, home_qb, away_qb)
   # Merge the player statistics over
   Model_Dataset_Append <- games %>%
     dplyr::filter(game_id %in% Model_Dataset$game_id == FALSE) %>%
@@ -299,11 +328,17 @@ create_nfl_modeldataset <- function(keep_latest_performance = FALSE){
 
   ### Add Game Location
   # Scrape game Location
-  game_location <- nflfastR::fast_scraper_schedules(min(Model_Dataset$season):max(Model_Dataset$season)) %>%
-    dplyr::select(game_id, location, stadium)
+  game_location <- nflseedR::load_sharpe_games() %>%
+    dplyr::select(game_id, location, stadium) %>%
+    dplyr::mutate(stadium = gsub("GEHA Field at Arrowhead Stadium", "Arrowhead Stadium", stadium))
   # Merge Game Location
   Model_Dataset <- Model_Dataset %>%
     dplyr::left_join(game_location, by = "game_id")
+
+  #Add QBs to Latest Performance Data
+  latest_team_performance <- latest_team_performance %>%
+    dplyr::left_join(assumed_starters, by = "team") %>%
+    dplyr::select(-short_name, -passer_player_id)
 
   ifelse(keep_latest_performance == TRUE, return(latest_team_performance), return(Model_Dataset))
 
