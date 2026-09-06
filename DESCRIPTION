@@ -15,4 +15,4 @@ Imports:
 	data.table (>= 1.9.4),
 	dplyr,
 	tidyverse,
-RoxygenNote: 7.1.1
+Config/roxygen2/version: 8.1.0
